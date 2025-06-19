@@ -1,0 +1,172 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  TRAINER
+  CLIENT
+}
+
+enum WorkoutPlanStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum NotificationType {
+  WORKOUT_PLAN
+  MESSAGE
+  REMINDER
+  SYSTEM
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  password  String
+  role      Role     @default(CLIENT)
+  avatar    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relazioni per i trainer
+  trainedClients Client[] @relation("TrainerClients")
+  createdWorkoutPlans WorkoutPlan[] @relation("TrainerWorkoutPlans")
+
+  // Relazioni per i clienti
+  clientProfile Client? @relation("UserClient")
+
+  // Messaggi inviati e ricevuti
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+
+  // Notifiche
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Client {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @unique @map("user_id")
+  trainerId    Int      @map("trainer_id")
+  height       Float?
+  weight       Float?
+  fitnessGoal  String?  @map("fitness_goal") @db.Text
+  healthIssues String?  @map("health_issues") @db.Text
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relazioni
+  user    User @relation("UserClient", fields: [userId], references: [id], onDelete: Cascade)
+  trainer User @relation("TrainerClients", fields: [trainerId], references: [id], onDelete: Cascade)
+
+  // Relazione one-to-many con i piani di allenamento
+  workoutPlans WorkoutPlan[] @relation("ClientWorkoutPlans")
+
+  // Progressi
+  progressRecords ProgressRecord[]
+
+  @@map("clients")
+}
+
+model WorkoutPlan {
+  id          Int               @id @default(autoincrement())
+  trainerId   Int               @map("trainer_id")
+  clientId    Int?              @map("client_id")
+  title       String
+  description String?           @db.Text
+  startDate   DateTime?         @map("start_date") @db.Date
+  endDate     DateTime?         @map("end_date") @db.Date
+  status      WorkoutPlanStatus @default(ACTIVE)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  // Relazioni
+  trainer User   @relation("TrainerWorkoutPlans", fields: [trainerId], references: [id], onDelete: Cascade)
+  client  Client? @relation("ClientWorkoutPlans", fields: [clientId], references: [id], onDelete: SetNull)
+
+
+
+
+  // Esercizi
+  exercises WorkoutExercise[]
+
+  @@map("workout_plans")
+}
+
+model WorkoutExercise {
+  id            Int      @id @default(autoincrement())
+  workoutPlanId Int      @map("workout_plan_id")
+  day           Int
+  exerciseName  String   @map("exercise_name")
+  sets          Int?
+  reps          String?
+  weight        String?
+  restTime      String?  @map("rest_time")
+  notes         String?  @db.Text
+  exerciseOrder Int      @map("exercise_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relazioni
+  workoutPlan WorkoutPlan @relation(fields: [workoutPlanId], references: [id], onDelete: Cascade)
+
+  @@map("workout_exercises")
+}
+
+model ProgressRecord {
+  id         Int      @id @default(autoincrement())
+  clientId   Int      @map("client_id")
+  recordDate DateTime @map("record_date") @db.Date
+  weight     Float?
+  notes      String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relazioni
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("progress_records")
+}
+
+model Message {
+  id         Int       @id @default(autoincrement())
+  senderId   Int       @map("sender_id")
+  receiverId Int       @map("receiver_id")
+  content    String    @db.Text
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  // Relazioni
+  sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int              @map("user_id")
+  title     String
+  message   String           @db.Text
+  type      NotificationType
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now()) @map("created_at")
+  entityId  String?
+
+  // Relazioni
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
